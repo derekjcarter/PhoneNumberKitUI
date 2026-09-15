@@ -10,7 +10,7 @@ let package = Package(
         .library(name: "PhoneNumberKitUI", targets: ["PhoneNumberKitUI"])
     ],
     dependencies: [
-        .package(url: "https://github.com/PhoneNumberKit/PhoneNumberKit", from: "5.0.0")
+        .package(url: "https://github.com/derekjcarter/PhoneNumberKit", branch: "smp")
     ],
     targets: [
         .target(

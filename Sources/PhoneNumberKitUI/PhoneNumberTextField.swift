@@ -36,7 +36,10 @@ open class PhoneNumberTextField: UITextField, UITextFieldDelegate {
     }
     /// Forces textContentType to .telephoneNumber for autofill support.
     override open var textContentType: UITextContentType! {
-        get { .telephoneNumber }
+        get {
+            /*.telephoneNumber*/
+            .none
+        }
         set {}
     }
 
@@ -52,15 +55,18 @@ open class PhoneNumberTextField: UITextField, UITextFieldDelegate {
         get {
             return self._defaultRegion
         }
-        @available(
+        /*@available(
             *,
             deprecated,
             message: """
                 The setter of defaultRegion is deprecated,
                 please override defaultRegion in a subclass instead.
             """
-        )
+        )*/
         set {
+            if PhoneNumberUtility.AllowDefaultCountryCodeOverride {
+                self._defaultRegion = newValue
+            }
             self.partialFormatter.defaultRegion = newValue
         }
     }
