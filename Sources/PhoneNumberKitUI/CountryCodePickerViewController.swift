@@ -37,6 +37,10 @@ public class CountryCodePickerViewController: UITableViewController {
     private var sectionIndexTitles: [String] = []
 
     var filteredCountries: [Country] = []
+    /// Whether the table is showing `filteredCountries`. Changed only on the main thread
+    /// together with `filteredCountries` and a reload, so the data source always matches
+    /// what the table last loaded (the search bar text changes before results are ready).
+    private(set) var isFiltering = false
     private var searchWorkItem: DispatchWorkItem?
 
     public weak var delegate: CountryCodePickerDelegate?
@@ -212,6 +216,11 @@ public class CountryCodePickerViewController: UITableViewController {
                 self.hasCommon = hasCommon
                 self.sectionIndexTitles = sectionTitles
                 self.tableView.reloadData()
+
+                // A search typed before the countries loaded filtered an empty list.
+                if self.searchController.isActive {
+                    self.updateSearchResults(for: self.searchController)
+                }
             }
         }
     }
@@ -287,34 +296,43 @@ public class CountryCodePickerViewController: UITableViewController {
 
 // MARK: - UISearchResultsUpdating
 extension CountryCodePickerViewController: UISearchResultsUpdating {
-    var isFiltering: Bool {
-        searchController.isActive && !isSearchBarEmpty
-    }
-
-    var isSearchBarEmpty: Bool {
-        searchController.searchBar.text?.isEmpty ?? true
-    }
-
     public func updateSearchResults(for searchController: UISearchController) {
         // Cancel previous search task
         searchWorkItem?.cancel()
-        
+        searchWorkItem = nil
+
         let searchText = searchController.searchBar.text ?? ""
-        
+
+        // No search: go back to the full list right away.
+        guard searchController.isActive, !searchText.isEmpty else {
+            if isFiltering || !filteredCountries.isEmpty {
+                isFiltering = false
+                filteredCountries = []
+                tableView.reloadData()
+            }
+            return
+        }
+
+        // Copy on the main thread so the background filter doesn't race with loadCountries().
+        let allCountries = self.allCountries
+        let query = searchText.lowercased()
+
         // Create new work item with throttling
         let workItem = DispatchWorkItem { [weak self] in
-            guard let self = self else { return }
-            
             // Perform filtering on background thread
-            let filtered = self.allCountries.filter { country in
-                country.name.lowercased().contains(searchText.lowercased()) ||
-                    country.code.lowercased().contains(searchText.lowercased()) ||
-                    country.prefix.lowercased().contains(searchText.lowercased())
+            let filtered = allCountries.filter { country in
+                country.name.lowercased().contains(query) ||
+                    country.code.lowercased().contains(query) ||
+                    country.prefix.lowercased().contains(query)
             }
-            
+
             // Update UI on main thread
             DispatchQueue.main.async {
+                guard let self = self else { return }
+                // Drop results for a search that is no longer the current one.
+                guard self.searchController.isActive, self.searchController.searchBar.text == searchText else { return }
                 self.filteredCountries = filtered
+                self.isFiltering = true
                 self.tableView.reloadData()
             }
         }
